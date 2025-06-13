@@ -1,4 +1,41 @@
-# データのプレビュー表示
+import streamlit as st
+import pandas as pd
+import fcsparser
+import tempfile
+import os
+import numpy as np
+from bokeh.plotting import figure
+from bokeh.models import HoverTool, ColorBar, LinearColorMapper
+from bokeh.palettes import Viridis256
+from bokeh.transform import transform
+from scipy import stats
+
+st.title("FACS Data Analysis")
+st.write("FlowCytometry Standard（.fcs）ファイルからイベントデータを抽出し、CSV形式でダウンロードできるアプリケーションです。")
+
+# ファイルアップロード
+uploaded_file = st.file_uploader("FCS ファイルをアップロードしてください", type=['fcs'])
+
+if uploaded_file is not None:
+    try:
+        # 一時ファイルに保存
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.fcs') as tmp_file:
+            tmp_file.write(uploaded_file.getvalue())
+            tmp_file_path = tmp_file.name
+        
+        # FCSファイルを読み込み
+        with st.spinner('FCSファイルを処理中...'):
+            meta, data = fcsparser.parse(tmp_file_path, reformat_meta=True)
+        
+        # データフレームに変換
+        df = pd.DataFrame(data)
+        
+        # 一時ファイルを削除
+        os.unlink(tmp_file_path)
+        
+        st.success(f"FCSファイルが正常に読み込まれました。{len(df)} イベントが検出されました。")
+        
+        # データのプレビュー表示
         st.subheader("データプレビュー（上位10行）")
         st.dataframe(df.head(10))
         
@@ -120,55 +157,22 @@
                     
                     # 回帰直線のオプション
                     if st.checkbox("回帰直線を表示"):
-                        # 新しいプロットに回帰直線を追加
-                        p_with_line = figure(width=plot_width, height=plot_height,
-                                           title=f"{y_axis} vs {x_axis} (回帰直線付き)",
-                                           x_axis_label=x_axis,
-                                           y_axis_label=y_axis,
-                                           tools="pan,wheel_zoom,box_zoom,reset,save")
+                        # 回帰直線の計算
+                        x_line = np.linspace(df_sample[x_axis].min(), df_sample[x_axis].max(), 100)
+                        y_line = slope * x_line + intercept
                         
-                        # 散布図を再度プロット
-                        if color_by != "なし":
-                            p_with_line.import streamlit as st
-import pandas as pd
-import fcsparser
-import tempfile
-import os
-import numpy as np
-from bokeh.plotting import figure
-from bokeh.models import HoverTool, ColorBar, LinearColorMapper
-from bokeh.palettes import Viridis256
-from bokeh.transform import transform
-from scipy import stats
-
-st.title("FACS Data Analysis")
-st.write("FlowCytometry Standard（.fcs）ファイルからイベントデータを抽出し、CSV形式でダウンロードできるアプリケーションです。")
-
-# ファイルアップロード
-uploaded_file = st.file_uploader("FCS ファイルをアップロードしてください", type=['fcs'])
-
-if uploaded_file is not None:
-    try:
-        # 一時ファイルに保存
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.fcs') as tmp_file:
-            tmp_file.write(uploaded_file.getvalue())
-            tmp_file_path = tmp_file.name
-        
-        # FCSファイルを読み込み
-        with st.spinner('FCSファイルを処理中...'):
-            meta, data = fcsparser.parse(tmp_file_path, reformat_meta=True)
-        
-        # データフレームに変換
-        df = pd.DataFrame(data)
-        
-        # 一時ファイルを削除
-        os.unlink(tmp_file_path)
-        
-        st.success(f"FCSファイルが正常に読み込まれました。{len(df)} イベントが検出されました。")
-        
-        # データのプレビュー表示
-        st.subheader("データプレビュー（上位10行）")
-        st.dataframe(df.head(10))
+                        # 回帰直線をプロットに追加
+                        p.line(x_line, y_line, line_width=2, color='red', alpha=0.8, legend_label='回帰直線')
+                        p.legend.location = "top_left"
+                        
+                        # 回帰直線付きプロットを再表示
+                        st.bokeh_chart(p, use_container_width=True)
+                        
+                        # 回帰式を表示
+                        st.write(f"**回帰式:** y = {slope:.3f}x + {intercept:.3f}")
+                        st.write(f"**p値:** {p_value:.3e}")
+        else:
+            st.warning("散布図を作成するには、少なくとも2つの数値列が必要です。")
         
         # 統計情報
         st.subheader("データ統計")
@@ -212,7 +216,18 @@ else:
     st.write("""
     1. 「FCS ファイルをアップロードしてください」ボタンをクリックして、FCSファイルを選択します
     2. ファイルが正常に読み込まれると、イベントデータの上位10行が表示されます
-    3. 「CSV をダウンロード」ボタンをクリックして、全イベントデータをCSV形式でダウンロードできます
+    3. 散布図セクションで、X軸とY軸を選択して「散布図を作成」ボタンをクリックします
+    4. 色分けや回帰直線の表示も可能です
+    5. 「CSV をダウンロード」ボタンをクリックして、全イベントデータをCSV形式でダウンロードできます
+    """)
+    
+    st.subheader("散布図機能")
+    st.write("""
+    - **軸選択**: X軸とY軸を自由に選択可能
+    - **色分け**: 第3の軸で色分け表示
+    - **サンプリング**: 大きなデータセットでも高速表示
+    - **インタラクティブ**: ズーム、パン、ホバー機能
+    - **統計情報**: 相関係数、R²値、回帰直線
     """)
     
     st.subheader("対応ファイル形式")
@@ -221,6 +236,7 @@ else:
     st.subheader("注意事項")
     st.write("""
     - 大きなFCSファイルの場合、処理に時間がかかる場合があります
+    - 散布図では表示速度のため、データポイント数を制限できます
     - イベントデータは生データ（raw）として抽出されます
     - メタデータも確認できます
     """)
