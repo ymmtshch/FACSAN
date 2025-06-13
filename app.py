@@ -7,7 +7,7 @@ import numpy as np
 from bokeh.plotting import figure
 from bokeh.models import HoverTool, ColorBar, LinearColorMapper
 from bokeh.palettes import Viridis256
-from bokeh.transform import transform
+from bokeh.models import ColumnDataSource
 from scipy import stats
 
 st.title("FACS Data Analysis")
@@ -85,6 +85,9 @@ if uploaded_file is not None:
                     else:
                         df_sample = df.copy()
                     
+                    # ColumnDataSourceを作成
+                    source = ColumnDataSource(df_sample)
+                    
                     # Bokeh散布図の作成
                     p = figure(width=plot_width, height=plot_height,
                              title=f"{y_axis} vs {x_axis}",
@@ -93,11 +96,11 @@ if uploaded_file is not None:
                              tools="pan,wheel_zoom,box_zoom,reset,save")
                     
                     # ホバーツールの設定
-                    hover = HoverTool(tooltips=[
+                    hover_tooltips = [
                         ("Index", "$index"),
                         (x_axis, f"@{x_axis}{{0.00}}"),
                         (y_axis, f"@{y_axis}{{0.00}}")
-                    ])
+                    ]
                     
                     if color_by != "なし":
                         # カラーマッピングの設定
@@ -108,8 +111,8 @@ if uploaded_file is not None:
                         # カラーバー付きの散布図
                         scatter = p.circle(x=x_axis, y=y_axis, 
                                          size=6, alpha=0.6,
-                                         color=transform(color_by, color_mapper),
-                                         source=df_sample)
+                                         color={'field': color_by, 'transform': color_mapper},
+                                         source=source)
                         
                         # カラーバーを追加
                         color_bar = ColorBar(color_mapper=color_mapper, 
@@ -119,14 +122,16 @@ if uploaded_file is not None:
                         p.add_layout(color_bar, 'right')
                         
                         # ホバーツールにカラー軸を追加
-                        hover.tooltips.append((color_by, f"@{color_by}{{0.00}}"))
+                        hover_tooltips.append((color_by, f"@{color_by}{{0.00}}"))
                     else:
                         # 単色の散布図
                         scatter = p.circle(x=x_axis, y=y_axis, 
                                          size=6, alpha=0.6, 
                                          color='navy',
-                                         source=df_sample)
+                                         source=source)
                     
+                    # ホバーツールを追加
+                    hover = HoverTool(tooltips=hover_tooltips)
                     p.add_tools(hover)
                     
                     # Streamlitに表示
