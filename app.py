@@ -9,7 +9,14 @@ from bokeh.models import HoverTool, ColorBar, LinearColorMapper
 from bokeh.palettes import Viridis256
 from bokeh.models import ColumnDataSource
 
-st.title("FACS Data Analysis")
+# ページ設定
+st.set_page_config(
+    page_title="FACS Data Analysis",
+    page_icon="🔬",
+    layout="wide"
+)
+
+st.title("🔬 FACS Data Analysis")
 st.write("FlowCytometry Standard（.fcs）ファイルからイベントデータを抽出し、CSV形式でダウンロードできるアプリケーションです。")
 
 # ファイルアップロード
@@ -32,19 +39,21 @@ if uploaded_file is not None:
         # 一時ファイルを削除
         os.unlink(tmp_file_path)
         
-        st.success(f"FCSファイルが正常に読み込まれました。{len(df)} イベントが検出されました。")
+        st.success(f"✅ FCSファイルが正常に読み込まれました。{len(df):,} イベントが検出されました。")
         
         # データのプレビュー表示
-        st.subheader("データプレビュー（上位10行）")
+        st.subheader("📋 データプレビュー（上位10行）")
         st.dataframe(df.head(10))
         
         # 散布図作成セクション
-        st.subheader("散布図作成")
+        st.subheader("📊 散布図作成")
         
         # 数値列のみを取得
         numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
         
         if len(numeric_columns) >= 2:
+            # 軸選択
+            st.write("### 🎯 軸選択")
             col1, col2 = st.columns(2)
             
             with col1:
@@ -55,14 +64,115 @@ if uploaded_file is not None:
                                     [col for col in numeric_columns if col != x_axis], 
                                     key="y_axis")
             
+            # プロット範囲設定
+            st.write("### 🎛️ プロット範囲設定")
+            
+            # データの範囲を取得
+            x_min, x_max = float(df[x_axis].min()), float(df[x_axis].max())
+            y_min, y_max = float(df[y_axis].min()), float(df[y_axis].max())
+            
+            range_col1, range_col2 = st.columns(2)
+            
+            with range_col1:
+                st.write(f"**🔢 X軸範囲設定 ({x_axis})**")
+                st.write(f"データ範囲: {x_min:.2f} ～ {x_max:.2f}")
+                
+                use_custom_x = st.checkbox("カスタムX軸範囲を使用", key="custom_x_range")
+                
+                if use_custom_x:
+                    x_range_method = st.radio(
+                        "X軸設定方法:",
+                        ["スライダー", "数値入力"],
+                        horizontal=True,
+                        key="x_range_method"
+                    )
+                    
+                    if x_range_method == "スライダー":
+                        x_range = st.slider(
+                            "X軸表示範囲",
+                            min_value=x_min,
+                            max_value=x_max,
+                            value=(x_min, x_max),
+                            step=(x_max - x_min) / 100,
+                            key="x_range_slider",
+                            format="%.2f"
+                        )
+                    else:
+                        x_input_col1, x_input_col2 = st.columns(2)
+                        with x_input_col1:
+                            x_min_input = st.number_input(
+                                "X軸最小値",
+                                value=x_min,
+                                step=(x_max - x_min) / 100,
+                                format="%.4f",
+                                key="x_min_input"
+                            )
+                        with x_input_col2:
+                            x_max_input = st.number_input(
+                                "X軸最大値",
+                                value=x_max,
+                                step=(x_max - x_min) / 100,
+                                format="%.4f",
+                                key="x_max_input"
+                            )
+                        x_range = (x_min_input, x_max_input)
+                else:
+                    x_range = (x_min, x_max)
+            
+            with range_col2:
+                st.write(f"**📊 Y軸範囲設定 ({y_axis})**")
+                st.write(f"データ範囲: {y_min:.2f} ～ {y_max:.2f}")
+                
+                use_custom_y = st.checkbox("カスタムY軸範囲を使用", key="custom_y_range")
+                
+                if use_custom_y:
+                    y_range_method = st.radio(
+                        "Y軸設定方法:",
+                        ["スライダー", "数値入力"],
+                        horizontal=True,
+                        key="y_range_method"
+                    )
+                    
+                    if y_range_method == "スライダー":
+                        y_range = st.slider(
+                            "Y軸表示範囲",
+                            min_value=y_min,
+                            max_value=y_max,
+                            value=(y_min, y_max),
+                            step=(y_max - y_min) / 100,
+                            key="y_range_slider",
+                            format="%.2f"
+                        )
+                    else:
+                        y_input_col1, y_input_col2 = st.columns(2)
+                        with y_input_col1:
+                            y_min_input = st.number_input(
+                                "Y軸最小値",
+                                value=y_min,
+                                step=(y_max - y_min) / 100,
+                                format="%.4f",
+                                key="y_min_input"
+                            )
+                        with y_input_col2:
+                            y_max_input = st.number_input(
+                                "Y軸最大値",
+                                value=y_max,
+                                step=(y_max - y_min) / 100,
+                                format="%.4f",
+                                key="y_max_input"
+                            )
+                        y_range = (y_min_input, y_max_input)
+                else:
+                    y_range = (y_min, y_max)
+            
             # プロットオプション
-            st.write("**プロットオプション**")
+            st.write("### 🎨 プロットオプション")
             plot_col1, plot_col2, plot_col3 = st.columns(3)
             
             with plot_col1:
                 sample_size = st.slider("表示するデータポイント数", 
                                       min_value=1000, 
-                                      max_value=min(len(df), 50000), 
+                                      max_value=min(len(df), 100000), 
                                       value=min(10000, len(df)),
                                       step=1000)
             
@@ -72,134 +182,247 @@ if uploaded_file is not None:
                                       key="color_axis")
             
             with plot_col3:
-                plot_width = st.slider("プロット幅", 400, 800, 600)
-                plot_height = st.slider("プロット高さ", 300, 600, 400)
+                alpha_value = st.slider("透明度", 0.1, 1.0, 0.6, 0.1)
+            
+            # プロットサイズ設定
+            size_col1, size_col2 = st.columns(2)
+            with size_col1:
+                plot_width = st.slider("プロット幅", 400, 1000, 700)
+            with size_col2:
+                plot_height = st.slider("プロット高さ", 300, 800, 500)
+            
+            # 範囲内データの統計表示
+            st.write("### 📈 選択範囲内のデータ統計")
+            
+            # 範囲内のデータをフィルタ
+            filtered_df = df[
+                (df[x_axis] >= x_range[0]) & (df[x_axis] <= x_range[1]) &
+                (df[y_axis] >= y_range[0]) & (df[y_axis] <= y_range[1])
+            ]
+            
+            stats_col1, stats_col2, stats_col3, stats_col4 = st.columns(4)
+            with stats_col1:
+                st.metric("選択範囲内イベント数", f"{len(filtered_df):,}")
+            with stats_col2:
+                st.metric("全体に対する割合", f"{len(filtered_df)/len(df)*100:.1f}%")
+            with stats_col3:
+                if len(filtered_df) > 0:
+                    st.metric(f"{x_axis} 平均", f"{filtered_df[x_axis].mean():.2f}")
+                else:
+                    st.metric(f"{x_axis} 平均", "N/A")
+            with stats_col4:
+                if len(filtered_df) > 0:
+                    st.metric(f"{y_axis} 平均", f"{filtered_df[y_axis].mean():.2f}")
+                else:
+                    st.metric(f"{y_axis} 平均", "N/A")
             
             # プロット作成ボタン
-            if st.button("散布図を作成", type="primary"):
-                with st.spinner('散布図を作成中...'):
-                    # データをサンプリング
-                    if len(df) > sample_size:
-                        df_sample = df.sample(n=sample_size, random_state=42)
-                    else:
-                        df_sample = df.copy()
-                    
-                    # ColumnDataSourceを作成
-                    source = ColumnDataSource(df_sample)
-                    
-                    # Bokeh散布図の作成
-                    p = figure(width=plot_width, height=plot_height,
-                             title=f"{y_axis} vs {x_axis}",
-                             x_axis_label=x_axis,
-                             y_axis_label=y_axis,
-                             tools="pan,wheel_zoom,box_zoom,reset,save")
-                    
-                    # ホバーツールの設定（列名を正確に指定）
-                    hover_tooltips = [
-                        ("Index", "$index"),
-                        (x_axis, f"@{{{x_axis}}}{{0.00}}"),
-                        (y_axis, f"@{{{y_axis}}}{{0.00}}")
-                    ]
-                    
-                    if color_by != "なし":
-                        # カラーマッピングの設定
-                        color_mapper = LinearColorMapper(palette=Viridis256, 
-                                                       low=df_sample[color_by].min(), 
-                                                       high=df_sample[color_by].max())
+            if st.button("🚀 散布図を作成", type="primary", use_container_width=True):
+                if len(filtered_df) == 0:
+                    st.warning("⚠️ 選択した範囲内にデータがありません。範囲を調整してください。")
+                else:
+                    with st.spinner('散布図を作成中...'):
+                        # データをサンプリング（範囲内データから）
+                        if len(filtered_df) > sample_size:
+                            df_sample = filtered_df.sample(n=sample_size, random_state=42)
+                        else:
+                            df_sample = filtered_df.copy()
                         
-                        # カラーバー付きの散布図
-                        scatter = p.circle(x=x_axis, y=y_axis, 
-                                         size=6, alpha=0.6,
-                                         color={'field': color_by, 'transform': color_mapper},
-                                         source=source)
+                        # ColumnDataSourceを作成
+                        source = ColumnDataSource(df_sample)
                         
-                        # カラーバーを追加
-                        color_bar = ColorBar(color_mapper=color_mapper, 
-                                           label_standoff=12,
-                                           location=(0,0),
-                                           title=color_by)
-                        p.add_layout(color_bar, 'right')
+                        # Bokeh散布図の作成
+                        p = figure(width=plot_width, height=plot_height,
+                                 title=f"{y_axis} vs {x_axis} (選択範囲内: {len(df_sample):,} points)",
+                                 x_axis_label=x_axis,
+                                 y_axis_label=y_axis,
+                                 tools="pan,wheel_zoom,box_zoom,reset,save,lasso_select,box_select")
                         
-                        # ホバーツールにカラー軸を追加
-                        hover_tooltips.append((color_by, f"@{{{color_by}}}{{0.00}}"))
-                    else:
-                        # 単色の散布図
-                        scatter = p.circle(x=x_axis, y=y_axis, 
-                                         size=6, alpha=0.6, 
-                                         color='navy',
-                                         source=source)
-                    
-                    # ホバーツールを追加
-                    hover = HoverTool(tooltips=hover_tooltips)
-                    p.add_tools(hover)
-                    
-                    # Streamlitに表示
-                    st.bokeh_chart(p, use_container_width=True)
+                        # 軸範囲を設定
+                        p.x_range.start = x_range[0]
+                        p.x_range.end = x_range[1]
+                        p.y_range.start = y_range[0]
+                        p.y_range.end = y_range[1]
+                        
+                        # ホバーツールの設定
+                        hover_tooltips = [
+                            ("Index", "$index"),
+                            (x_axis, f"@{{{x_axis}}}{{0.00}}"),
+                            (y_axis, f"@{{{y_axis}}}{{0.00}}")
+                        ]
+                        
+                        if color_by != "なし":
+                            # カラーマッピングの設定（フィルタ済みデータの範囲で）
+                            color_min = df_sample[color_by].min()
+                            color_max = df_sample[color_by].max()
+                            
+                            if color_min != color_max:  # 単一値でない場合のみカラーマッピング
+                                color_mapper = LinearColorMapper(palette=Viridis256, 
+                                                               low=color_min, 
+                                                               high=color_max)
+                                
+                                # カラーバー付きの散布図
+                                scatter = p.circle(x=x_axis, y=y_axis, 
+                                                 size=6, alpha=alpha_value,
+                                                 color={'field': color_by, 'transform': color_mapper},
+                                                 source=source)
+                                
+                                # カラーバーを追加
+                                color_bar = ColorBar(color_mapper=color_mapper, 
+                                                   label_standoff=12,
+                                                   location=(0,0),
+                                                   title=color_by)
+                                p.add_layout(color_bar, 'right')
+                                
+                                # ホバーツールにカラー軸を追加
+                                hover_tooltips.append((color_by, f"@{{{color_by}}}{{0.00}}"))
+                            else:
+                                # 単色の散布図（単一値の場合）
+                                scatter = p.circle(x=x_axis, y=y_axis, 
+                                                 size=6, alpha=alpha_value, 
+                                                 color='navy',
+                                                 source=source)
+                                st.info(f"色分け軸 '{color_by}' の値が単一のため、色分けは適用されません。")
+                        else:
+                            # 単色の散布図
+                            scatter = p.circle(x=x_axis, y=y_axis, 
+                                             size=6, alpha=alpha_value, 
+                                             color='navy',
+                                             source=source)
+                        
+                        # ホバーツールを追加
+                        hover = HoverTool(tooltips=hover_tooltips)
+                        p.add_tools(hover)
+                        
+                        # グリッドスタイルの調整
+                        p.grid.grid_line_alpha = 0.3
+                        
+                        # Streamlitに表示
+                        st.bokeh_chart(p, use_container_width=True)
+                        
+                        # プロット情報
+                        st.info(f"""
+                        📊 **プロット情報**
+                        - 表示データポイント数: {len(df_sample):,}
+                        - X軸範囲: {x_range[0]:.3f} ～ {x_range[1]:.3f}
+                        - Y軸範囲: {y_range[0]:.3f} ～ {y_range[1]:.3f}
+                        - 色分け: {color_by if color_by != "なし" else "単色"}
+                        """)
         else:
-            st.warning("散布図を作成するには、少なくとも2つの数値列が必要です。")
+            st.warning("⚠️ 散布図を作成するには、少なくとも2つの数値列が必要です。")
         
         # 統計情報
-        st.subheader("データ統計")
+        st.subheader("📊 データ統計")
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("総イベント数", len(df))
+            st.metric("総イベント数", f"{len(df):,}")
         with col2:
             st.metric("パラメータ数", len(df.columns))
         with col3:
             st.metric("ファイルサイズ", f"{len(uploaded_file.getvalue())/1024/1024:.2f} MB")
         
-        # メタデータ表示
-        if st.checkbox("メタデータを表示"):
-            st.subheader("FCSファイル メタデータ")
-            meta_df = pd.DataFrame(list(meta.items()), columns=['Key', 'Value'])
-            st.dataframe(meta_df)
+        # 数値パラメータの統計サマリー
+        if len(numeric_columns) > 0:
+            st.subheader("📈 数値パラメータ統計サマリー")
+            stats_df = df[numeric_columns].describe()
+            st.dataframe(stats_df, use_container_width=True)
         
-        # CSVダウンロード
-        csv_data = df.to_csv(index=False)
-        st.download_button(
-            label="CSV をダウンロード",
-            data=csv_data,
-            file_name="events_output.csv",
-            mime="text/csv"
-        )
+        # メタデータ表示
+        if st.checkbox("🔍 メタデータを表示"):
+            st.subheader("📋 FCSファイル メタデータ")
+            meta_df = pd.DataFrame(list(meta.items()), columns=['Key', 'Value'])
+            st.dataframe(meta_df, use_container_width=True)
+        
+        # データダウンロード
+        st.subheader("💾 データダウンロード")
+        
+        download_col1, download_col2 = st.columns(2)
+        
+        with download_col1:
+            # 全データのダウンロード
+            csv_data = df.to_csv(index=False)
+            st.download_button(
+                label="📄 全データをCSVでダウンロード",
+                data=csv_data,
+                file_name="facs_all_events.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        
+        with download_col2:
+            # 選択範囲内データのダウンロード（軸が選択されている場合）
+            if 'x_axis' in st.session_state and 'y_axis' in st.session_state:
+                if 'filtered_df' in locals() and len(filtered_df) > 0:
+                    filtered_csv = filtered_df.to_csv(index=False)
+                    st.download_button(
+                        label="🎯 選択範囲内データをCSVでダウンロード",
+                        data=filtered_csv,
+                        file_name=f"facs_filtered_{x_axis}_{y_axis}.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                else:
+                    st.button("🎯 選択範囲内データをCSVでダウンロード", 
+                             disabled=True, 
+                             help="選択範囲内にデータがありません",
+                             use_container_width=True)
         
     except Exception as e:
-        st.error(f"FCSファイルの処理中にエラーが発生しました: {str(e)}")
-        st.write("エラーの詳細:")
-        st.code(str(e))
+        st.error(f"❌ FCSファイルの処理中にエラーが発生しました: {str(e)}")
+        with st.expander("エラーの詳細"):
+            st.code(str(e))
         
         # 一時ファイルが残っている場合は削除
         if 'tmp_file_path' in locals() and os.path.exists(tmp_file_path):
             os.unlink(tmp_file_path)
 
 else:
-    st.info("FCSファイルをアップロードしてください。")
+    st.info("📁 FCSファイルをアップロードしてください。")
     
     # 使用方法の説明
-    st.subheader("使用方法")
-    st.write("""
-    1. 「FCS ファイルをアップロードしてください」ボタンをクリックして、FCSファイルを選択します
-    2. ファイルが正常に読み込まれると、イベントデータの上位10行が表示されます
-    3. 散布図セクションで、X軸とY軸を選択して「散布図を作成」ボタンをクリックします
-    4. 色分けオプションで第3軸による色分けも可能です
-    5. 「CSV をダウンロード」ボタンをクリックして、全イベントデータをCSV形式でダウンロードできます
-    """)
+    st.subheader("📖 使用方法")
+    with st.container():
+        st.markdown("""
+        ### 基本的な流れ
+        1. **ファイルアップロード**: 「FCS ファイルをアップロードしてください」ボタンをクリックして、FCSファイルを選択
+        2. **データ確認**: ファイルが正常に読み込まれると、イベントデータの上位10行が表示
+        3. **軸選択**: 散布図セクションで、X軸とY軸を選択
+        4. **範囲設定**: プロット範囲設定で表示する範囲を細かく調整
+        5. **プロット作成**: 「散布図を作成」ボタンをクリックして可視化
+        6. **データダウンロード**: 必要に応じて全データまたは選択範囲内データをCSVでダウンロード
+        """)
     
-    st.subheader("散布図機能")
-    st.write("""
-    - **軸選択**: X軸とY軸を自由に選択可能
-    - **色分け**: 第3の軸で色分け表示
-    - **サンプリング**: 大きなデータセットでも高速表示
-    - **インタラクティブ**: ズーム、パン、ホバー機能
-    """)
+    st.subheader("🎛️ プロット範囲設定機能")
+    with st.container():
+        st.markdown("""
+        ### 新機能：詳細範囲設定
+        - **スライダー設定**: 直感的なスライダーで範囲を調整
+        - **数値入力設定**: 正確な数値で範囲を指定
+        - **リアルタイム統計**: 選択範囲内のデータ統計を即座に表示
+        - **範囲内データ抽出**: 設定した範囲内のデータのみを可視化・ダウンロード
+        - **自動範囲調整**: プロット表示範囲が自動的に設定範囲に調整
+        """)
     
-    st.subheader("対応ファイル形式")
+    st.subheader("📊 散布図機能")
+    with st.container():
+        st.markdown("""
+        - **軸選択**: X軸とY軸を自由に選択可能
+        - **色分け**: 第3の軸で色分け表示（カラーバー付き）
+        - **サンプリング**: 大きなデータセットでも高速表示
+        - **インタラクティブ**: ズーム、パン、ホバー、選択機能
+        - **透明度調整**: データの重なりを見やすく調整
+        - **カスタムサイズ**: プロットサイズを自由に調整
+        """)
+    
+    st.subheader("📁 対応ファイル形式")
     st.write("- .fcs（Flow Cytometry Standard）ファイル")
     
-    st.subheader("注意事項")
-    st.write("""
-    - 大きなFCSファイルの場合、処理に時間がかかる場合があります
-    - 散布図では表示速度のため、データポイント数を制限できます
-    - イベントデータは生データ（raw）として抽出されます
-    - メタデータも確認できます
-    """)
+    st.subheader("⚠️ 注意事項")
+    with st.container():
+        st.markdown("""
+        - 大きなFCSファイルの場合、処理に時間がかかる場合があります
+        - 散布図では表示速度のため、データポイント数を制限できます
+        - イベントデータは生データ（raw）として抽出されます
+        - メタデータも確認できます
+        - 選択範囲外のデータは表示されません
+        """)
