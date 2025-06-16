@@ -45,11 +45,113 @@ if uploaded_file is not None:
         st.subheader("📋 データプレビュー（上位10行）")
         st.dataframe(df.head(10))
         
-        # 散布図作成セクション
-        st.subheader("📊 散布図作成")
-        
         # 数値列のみを取得
         numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+        
+        # 蛍光強度統計情報セクション
+        st.subheader("📊 蛍光強度統計情報")
+        if len(numeric_columns) > 0:
+            # 統計情報を計算
+            stats_summary = df[numeric_columns].agg(['mean', 'std', 'min', 'max', 'count'])
+            stats_summary = stats_summary.round(3)
+            
+            # 統計表を表示
+            st.write("### 📈 各パラメータの統計サマリー")
+            st.dataframe(stats_summary.T, use_container_width=True)
+            
+            # 特定のパラメータの詳細統計
+            st.write("### 🎯 パラメータ別詳細統計")
+            selected_param = st.selectbox("詳細を見るパラメータを選択:", numeric_columns)
+            
+            if selected_param:
+                param_stats = df[selected_param].describe()
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("平均値", f"{param_stats['mean']:.3f}")
+                with col2:
+                    st.metric("標準偏差", f"{param_stats['std']:.3f}")
+                with col3:
+                    st.metric("最小値", f"{param_stats['min']:.3f}")
+                with col4:
+                    st.metric("最大値", f"{param_stats['max']:.3f}")
+        
+        # ヒストグラム作成セクション
+        st.subheader("📊 ヒストグラム作成")
+        if len(numeric_columns) > 0:
+            hist_col1, hist_col2 = st.columns(2)
+            
+            with hist_col1:
+                hist_param = st.selectbox("ヒストグラムを作成するパラメータ:", numeric_columns, key="hist_param")
+            
+            with hist_col2:
+                bin_count = st.slider("ビン数", min_value=10, max_value=100, value=50, step=5)
+            
+            # ヒストグラムオプション
+            hist_options_col1, hist_options_col2 = st.columns(2)
+            with hist_options_col1:
+                hist_width = st.slider("ヒストグラム幅", 400, 1000, 700, key="hist_width")
+            with hist_options_col2:
+                hist_height = st.slider("ヒストグラム高さ", 300, 600, 400, key="hist_height")
+            
+            if st.button("📊 ヒストグラムを作成", type="primary", key="create_histogram"):
+                with st.spinner('ヒストグラムを作成中...'):
+                    # データを取得
+                    hist_data = df[hist_param].dropna()
+                    
+                    # ヒストグラムデータを計算
+                    hist, edges = np.histogram(hist_data, bins=bin_count)
+                    
+                    # Bokehでヒストグラムを作成
+                    p_hist = figure(width=hist_width, height=hist_height,
+                                   title=f"{hist_param} ヒストグラム (n={len(hist_data):,})",
+                                   x_axis_label=hist_param,
+                                   y_axis_label="頻度",
+                                   tools="pan,wheel_zoom,box_zoom,reset,save")
+                    
+                    # バーを描画
+                    p_hist.quad(top=hist, bottom=0, left=edges[:-1], right=edges[1:],
+                               fill_color="navy", line_color="white", alpha=0.7)
+                    
+                    # グリッドスタイルの調整
+                    p_hist.grid.grid_line_alpha = 0.3
+                    
+                    # 統計線を追加
+                    mean_val = hist_data.mean()
+                    std_val = hist_data.std()
+                    
+                    # 平均線
+                    p_hist.line([mean_val, mean_val], [0, max(hist)], 
+                               line_color="red", line_width=2, legend_label=f"平均: {mean_val:.3f}")
+                    
+                    # ±1標準偏差線
+                    p_hist.line([mean_val - std_val, mean_val - std_val], [0, max(hist) * 0.8], 
+                               line_color="orange", line_width=2, line_dash="dashed", 
+                               legend_label=f"-1σ: {mean_val - std_val:.3f}")
+                    p_hist.line([mean_val + std_val, mean_val + std_val], [0, max(hist) * 0.8], 
+                               line_color="orange", line_width=2, line_dash="dashed", 
+                               legend_label=f"+1σ: {mean_val + std_val:.3f}")
+                    
+                    # 凡例の設定
+                    p_hist.legend.location = "top_right"
+                    p_hist.legend.click_policy = "hide"
+                    
+                    # Streamlitに表示
+                    st.bokeh_chart(p_hist, use_container_width=True)
+                    
+                    # ヒストグラム統計情報
+                    st.info(f"""
+                    📊 **ヒストグラム統計情報**
+                    - パラメータ: {hist_param}
+                    - データ数: {len(hist_data):,}
+                    - ビン数: {bin_count}
+                    - 平均値: {mean_val:.3f}
+                    - 標準偏差: {std_val:.3f}
+                    - 範囲: {hist_data.min():.3f} ～ {hist_data.max():.3f}
+                    """)
+        
+        # 散布図作成セクション（既存コード）
+        st.subheader("📊 散布図作成")
         
         if len(numeric_columns) >= 2:
             # 軸選択
@@ -386,16 +488,33 @@ else:
         ### 基本的な流れ
         1. **ファイルアップロード**: 「FCS ファイルをアップロードしてください」ボタンをクリックして、FCSファイルを選択
         2. **データ確認**: ファイルが正常に読み込まれると、イベントデータの上位10行が表示
-        3. **軸選択**: 散布図セクションで、X軸とY軸を選択
-        4. **範囲設定**: プロット範囲設定で表示する範囲を細かく調整
-        5. **プロット作成**: 「散布図を作成」ボタンをクリックして可視化
-        6. **データダウンロード**: 必要に応じて全データまたは選択範囲内データをCSVでダウンロード
+        3. **統計情報確認**: 各蛍光強度パラメータの平均値・標準偏差を確認
+        4. **ヒストグラム作成**: 特定のパラメータのヒストグラムを作成（平均・標準偏差線付き）
+        5. **軸選択**: 散布図セクションで、X軸とY軸を選択
+        6. **範囲設定**: プロット範囲設定で表示する範囲を細かく調整
+        7. **プロット作成**: 「散布図を作成」ボタンをクリックして可視化
+        8. **データダウンロード**: 必要に応じて全データまたは選択範囲内データをCSVでダウンロード
+        """)
+    
+    st.subheader("📊 新機能：統計情報・ヒストグラム")
+    with st.container():
+        st.markdown("""
+        ### 蛍光強度統計情報
+        - **全パラメータ統計**: 各蛍光強度の平均値・標準偏差・最小値・最大値を一覧表示
+        - **詳細統計**: 特定パラメータの詳細統計情報をメトリック表示
+        
+        ### ヒストグラム機能
+        - **パラメータ選択**: 任意の蛍光強度パラメータでヒストグラム作成
+        - **ビン数調整**: 10〜100の範囲でヒン数を調整可能
+        - **統計線表示**: 平均値線と±1標準偏差線を自動表示
+        - **サイズ調整**: ヒストグラムの幅・高さを自由に調整
+        - **詳細情報**: データ数、統計値、範囲を表示
         """)
     
     st.subheader("🎛️ プロット範囲設定機能")
     with st.container():
         st.markdown("""
-        ### 新機能：詳細範囲設定
+        ### 詳細範囲設定
         - **スライダー設定**: 直感的なスライダーで範囲を調整
         - **数値入力設定**: 正確な数値で範囲を指定
         - **リアルタイム統計**: 選択範囲内のデータ統計を即座に表示
@@ -425,4 +544,5 @@ else:
         - イベントデータは生データ（raw）として抽出されます
         - メタデータも確認できます
         - 選択範囲外のデータは表示されません
+        - ヒストグラムでは欠損値（NA）は自動的に除外されます
         """)
