@@ -77,78 +77,156 @@ if uploaded_file is not None:
                     st.metric("最大値", f"{param_stats['max']:.3f}")
         
         # ヒストグラム作成セクション
+        # ヒストグラム作成セクション
         st.subheader("📊 ヒストグラム作成")
         if len(numeric_columns) > 0:
             hist_col1, hist_col2 = st.columns(2)
-            
+    
             with hist_col1:
                 hist_param = st.selectbox("ヒストグラムを作成するパラメータ:", numeric_columns, key="hist_param")
-            
+    
             with hist_col2:
                 bin_count = st.slider("ビン数", min_value=10, max_value=100, value=50, step=5)
+    
+            # パラメータの範囲を取得
+            param_min, param_max = float(df[hist_param].min()), float(df[hist_param].max())
+    
+            # 範囲設定セクション
+            st.write("### 🎛️ ヒストグラム範囲設定")
+            st.write(f"データ範囲: {param_min:.2f} ～ {param_max:.2f}")
+    
+            range_col1, range_col2 = st.columns(2)
+    
+            with range_col1:
+                use_custom_range = st.checkbox("カスタム範囲を使用", key="hist_custom_range")
+        
+                if use_custom_range:
+                    range_method = st.radio(
+                        "範囲設定方法:",
+                        ["スライダー", "数値入力"],
+                        horizontal=True,
+                        key="hist_range_method"
+                    )
             
+                    if range_method == "スライダー":
+                        hist_range = st.slider(
+                            "ヒストグラム表示範囲",
+                            min_value=param_min,
+                            max_value=param_max,
+                            value=(param_min, param_max),
+                            step=(param_max - param_min) / 100,
+                            key="hist_range_slider",
+                            format="%.2f"
+                        )
+                    else:
+                        range_input_col1, range_input_col2 = st.columns(2)
+                        with range_input_col1:
+                            hist_min_input = st.number_input(
+                                "最小値",
+                                value=param_min,
+                                step=(param_max - param_min) / 100,
+                                format="%.4f",
+                                key="hist_min_input"
+                            )
+                        with range_input_col2:
+                            hist_max_input = st.number_input(
+                                "最大値",
+                                value=param_max,
+                                step=(param_max - param_min) / 100,
+                                format="%.4f",
+                                key="hist_max_input"
+                            )
+                        hist_range = (hist_min_input, hist_max_input)
+                else:
+                    hist_range = (param_min, param_max)
+    
+            with range_col2:
+                # 範囲内データの統計表示
+                filtered_hist_data = df[hist_param].dropna()
+                filtered_hist_data = filtered_hist_data[
+                    (filtered_hist_data >= hist_range[0]) & 
+                    (filtered_hist_data <= hist_range[1])
+                ]
+        
+                st.write("**📈 選択範囲内統計**")
+                if len(filtered_hist_data) > 0:
+                    st.write(f"データ数: {len(filtered_hist_data):,}")
+                    st.write(f"全体比率: {len(filtered_hist_data)/len(df)*100:.1f}%")
+                    st.write(f"平均値: {filtered_hist_data.mean():.3f}")
+                    st.write(f"標準偏差: {filtered_hist_data.std():.3f}")
+                else:
+                    st.write("範囲内にデータがありません")
+    
             # ヒストグラムオプション
             hist_options_col1, hist_options_col2 = st.columns(2)
             with hist_options_col1:
                 hist_width = st.slider("ヒストグラム幅", 400, 1000, 700, key="hist_width")
             with hist_options_col2:
                 hist_height = st.slider("ヒストグラム高さ", 300, 600, 400, key="hist_height")
-            
+    
             if st.button("📊 ヒストグラムを作成", type="primary", key="create_histogram"):
-                with st.spinner('ヒストグラムを作成中...'):
-                    # データを取得
-                    hist_data = df[hist_param].dropna()
-                    
-                    # ヒストグラムデータを計算
-                    hist, edges = np.histogram(hist_data, bins=bin_count)
-                    
-                    # Bokehでヒストグラムを作成
-                    p_hist = figure(width=hist_width, height=hist_height,
-                                   title=f"{hist_param} ヒストグラム (n={len(hist_data):,})",
-                                   x_axis_label=hist_param,
-                                   y_axis_label="頻度",
-                                   tools="pan,wheel_zoom,box_zoom,reset,save")
-                    
-                    # バーを描画
-                    p_hist.quad(top=hist, bottom=0, left=edges[:-1], right=edges[1:],
-                               fill_color="navy", line_color="white", alpha=0.7)
-                    
-                    # グリッドスタイルの調整
-                    p_hist.grid.grid_line_alpha = 0.3
-                    
-                    # 統計線を追加
-                    mean_val = hist_data.mean()
-                    std_val = hist_data.std()
-                    
-                    # 平均線
-                    p_hist.line([mean_val, mean_val], [0, max(hist)], 
-                               line_color="red", line_width=2, legend_label=f"平均: {mean_val:.3f}")
-                    
-                    # ±1標準偏差線
-                    p_hist.line([mean_val - std_val, mean_val - std_val], [0, max(hist) * 0.8], 
-                               line_color="orange", line_width=2, line_dash="dashed", 
-                               legend_label=f"-1σ: {mean_val - std_val:.3f}")
-                    p_hist.line([mean_val + std_val, mean_val + std_val], [0, max(hist) * 0.8], 
-                               line_color="orange", line_width=2, line_dash="dashed", 
-                               legend_label=f"+1σ: {mean_val + std_val:.3f}")
-                    
-                    # 凡例の設定
-                    p_hist.legend.location = "top_right"
-                    p_hist.legend.click_policy = "hide"
-                    
-                    # Streamlitに表示
-                    st.bokeh_chart(p_hist, use_container_width=True)
-                    
-                    # ヒストグラム統計情報
-                    st.info(f"""
-                    📊 **ヒストグラム統計情報**
-                    - パラメータ: {hist_param}
-                    - データ数: {len(hist_data):,}
-                    - ビン数: {bin_count}
-                    - 平均値: {mean_val:.3f}
-                    - 標準偏差: {std_val:.3f}
-                    - 範囲: {hist_data.min():.3f} ～ {hist_data.max():.3f}
-                    """)
+                if len(filtered_hist_data) == 0:
+                    st.warning("⚠️ 選択した範囲内にデータがありません。範囲を調整してください。")
+                else:
+                    with st.spinner('ヒストグラムを作成中...'):
+                        # 範囲内データでヒストグラムデータを計算
+                        hist, edges = np.histogram(filtered_hist_data, bins=bin_count, 
+                                                 range=hist_range)
+                
+                        # Bokehでヒストグラムを作成
+                        p_hist = figure(width=hist_width, height=hist_height,
+                                       title=f"{hist_param} ヒストグラム (範囲: {hist_range[0]:.2f}～{hist_range[1]:.2f}, n={len(filtered_hist_data):,})",
+                                       x_axis_label=hist_param,
+                                       y_axis_label="頻度",
+                                       tools="pan,wheel_zoom,box_zoom,reset,save")
+                
+                        # X軸範囲を設定
+                        p_hist.x_range.start = hist_range[0]
+                        p_hist.x_range.end = hist_range[1]
+                
+                        # バーを描画
+                        p_hist.quad(top=hist, bottom=0, left=edges[:-1], right=edges[1:],
+                                   fill_color="navy", line_color="white", alpha=0.7)
+                
+                       # グリッドスタイルの調整
+                        p_hist.grid.grid_line_alpha = 0.3
+                
+                        # 統計線を追加（範囲内データの統計）
+                        mean_val = filtered_hist_data.mean()
+                        std_val = filtered_hist_data.std()
+                
+                        # 平均線
+                        p_hist.line([mean_val, mean_val], [0, max(hist)], 
+                                   line_color="red", line_width=2, legend_label=f"平均: {mean_val:.3f}")
+                
+                        # ±1標準偏差線
+                        p_hist.line([mean_val - std_val, mean_val - std_val], [0, max(hist) * 0.8], 
+                                   line_color="orange", line_width=2, line_dash="dashed", 
+                                   legend_label=f"-1σ: {mean_val - std_val:.3f}")
+                        p_hist.line([mean_val + std_val, mean_val + std_val], [0, max(hist) * 0.8], 
+                                   line_color="orange", line_width=2, line_dash="dashed", 
+                                   legend_label=f"+1σ: {mean_val + std_val:.3f}")
+                
+                        # 凡例の設定
+                        p_hist.legend.location = "top_right"
+                        p_hist.legend.click_policy = "hide"
+                
+                        # Streamlitに表示
+                        st.bokeh_chart(p_hist, use_container_width=True)
+                
+                        # ヒストグラム統計情報
+                        st.info(f"""
+                        📊 **ヒストグラム統計情報**
+                        - パラメータ: {hist_param}
+                        - 表示範囲: {hist_range[0]:.3f} ～ {hist_range[1]:.3f}
+                        - 範囲内データ数: {len(filtered_hist_data):,}
+                        - 全体に対する割合: {len(filtered_hist_data)/len(df)*100:.1f}%
+                        - ビン数: {bin_count}
+                        - 平均値: {mean_val:.3f}
+                        - 標準偏差: {std_val:.3f}
+                        - 最小値: {filtered_hist_data.min():.3f}
+                        - 最大値: {filtered_hist_data.max():.3f}
+                        """)
         
         # 散布図作成セクション（既存コード）
         st.subheader("📊 散布図作成")
