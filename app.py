@@ -8,7 +8,6 @@ from bokeh.plotting import figure
 from bokeh.models import HoverTool, ColorBar, LinearColorMapper
 from bokeh.palettes import Viridis256
 from bokeh.models import ColumnDataSource
-from scipy import stats
 
 st.title("FACS Data Analysis")
 st.write("FlowCytometry Standard（.fcs）ファイルからイベントデータを抽出し、CSV形式でダウンロードできるアプリケーションです。")
@@ -95,11 +94,11 @@ if uploaded_file is not None:
                              y_axis_label=y_axis,
                              tools="pan,wheel_zoom,box_zoom,reset,save")
                     
-                    # ホバーツールの設定
+                    # ホバーツールの設定（列名を正確に指定）
                     hover_tooltips = [
                         ("Index", "$index"),
-                        (x_axis, f"@{x_axis}{{0.00}}"),
-                        (y_axis, f"@{y_axis}{{0.00}}")
+                        (x_axis, f"@{{{x_axis}}}{{0.00}}"),
+                        (y_axis, f"@{{{y_axis}}}{{0.00}}")
                     ]
                     
                     if color_by != "なし":
@@ -122,7 +121,7 @@ if uploaded_file is not None:
                         p.add_layout(color_bar, 'right')
                         
                         # ホバーツールにカラー軸を追加
-                        hover_tooltips.append((color_by, f"@{color_by}{{0.00}}"))
+                        hover_tooltips.append((color_by, f"@{{{color_by}}}{{0.00}}"))
                     else:
                         # 単色の散布図
                         scatter = p.circle(x=x_axis, y=y_axis, 
@@ -136,46 +135,6 @@ if uploaded_file is not None:
                     
                     # Streamlitに表示
                     st.bokeh_chart(p, use_container_width=True)
-                    
-                    # 統計情報の表示
-                    st.write("**統計情報**")
-                    stats_col1, stats_col2 = st.columns(2)
-                    
-                    with stats_col1:
-                        correlation = df_sample[x_axis].corr(df_sample[y_axis])
-                        st.metric("相関係数", f"{correlation:.3f}")
-                        
-                        # 線形回帰の統計
-                        slope, intercept, r_value, p_value, std_err = stats.linregress(
-                            df_sample[x_axis], df_sample[y_axis]
-                        )
-                        st.metric("R²値", f"{r_value**2:.3f}")
-                    
-                    with stats_col2:
-                        st.write(f"**{x_axis}統計:**")
-                        st.write(f"平均: {df_sample[x_axis].mean():.2f}")
-                        st.write(f"標準偏差: {df_sample[x_axis].std():.2f}")
-                        
-                        st.write(f"**{y_axis}統計:**")
-                        st.write(f"平均: {df_sample[y_axis].mean():.2f}")
-                        st.write(f"標準偏差: {df_sample[y_axis].std():.2f}")
-                    
-                    # 回帰直線のオプション
-                    if st.checkbox("回帰直線を表示"):
-                        # 回帰直線の計算
-                        x_line = np.linspace(df_sample[x_axis].min(), df_sample[x_axis].max(), 100)
-                        y_line = slope * x_line + intercept
-                        
-                        # 回帰直線をプロットに追加
-                        p.line(x_line, y_line, line_width=2, color='red', alpha=0.8, legend_label='回帰直線')
-                        p.legend.location = "top_left"
-                        
-                        # 回帰直線付きプロットを再表示
-                        st.bokeh_chart(p, use_container_width=True)
-                        
-                        # 回帰式を表示
-                        st.write(f"**回帰式:** y = {slope:.3f}x + {intercept:.3f}")
-                        st.write(f"**p値:** {p_value:.3e}")
         else:
             st.warning("散布図を作成するには、少なくとも2つの数値列が必要です。")
         
@@ -222,7 +181,7 @@ else:
     1. 「FCS ファイルをアップロードしてください」ボタンをクリックして、FCSファイルを選択します
     2. ファイルが正常に読み込まれると、イベントデータの上位10行が表示されます
     3. 散布図セクションで、X軸とY軸を選択して「散布図を作成」ボタンをクリックします
-    4. 色分けや回帰直線の表示も可能です
+    4. 色分けオプションで第3軸による色分けも可能です
     5. 「CSV をダウンロード」ボタンをクリックして、全イベントデータをCSV形式でダウンロードできます
     """)
     
@@ -232,7 +191,6 @@ else:
     - **色分け**: 第3の軸で色分け表示
     - **サンプリング**: 大きなデータセットでも高速表示
     - **インタラクティブ**: ズーム、パン、ホバー機能
-    - **統計情報**: 相関係数、R²値、回帰直線
     """)
     
     st.subheader("対応ファイル形式")
